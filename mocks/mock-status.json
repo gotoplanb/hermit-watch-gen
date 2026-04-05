@@ -1,0 +1,50 @@
+{
+  "worst_state": "squall",
+  "updated_at": "2026-04-05T14:07:00Z",
+  "triage": "Gibraltar is seeing elevated 5xx rates from Expedia upstream (root cause). 18 downstream SLO violation alerts are byproduct noise. Focus on Gibraltar-Expedia-5xx alert — Expedia pod recovery expected within 10 minutes based on historical pattern.",
+  "active_alert_count": 19,
+  "root_cause_alert": "Gibraltar-Expedia-5xx",
+  "noise_alert_count": 18,
+  "services": [
+    {
+      "id": "gibraltar",
+      "display_name": "Gibraltar",
+      "state": "squall",
+      "updated_at": "2026-04-05T14:07:00Z",
+      "message": "Error rate 8.3%, elevated from baseline 0.2%. Expedia upstream returning 5xx.",
+      "url": "https://your-sumo-url/monitors/gibraltar"
+    },
+    {
+      "id": "orderbond",
+      "display_name": "OrderBond",
+      "state": "unsettled",
+      "updated_at": "2026-04-05T14:07:00Z",
+      "message": "SLO violation — downstream of Gibraltar Expedia issue.",
+      "url": "https://your-sumo-url/monitors/orderbond"
+    },
+    {
+      "id": "unicorn",
+      "display_name": "Unicorn",
+      "state": "calm",
+      "updated_at": "2026-04-05T14:07:00Z",
+      "message": "All systems nominal.",
+      "url": null
+    },
+    {
+      "id": "amex-services",
+      "display_name": "Amex Services",
+      "state": "calm",
+      "updated_at": "2026-04-05T14:07:00Z",
+      "message": "All systems nominal.",
+      "url": null
+    },
+    {
+      "id": "hotel-services",
+      "display_name": "Hotel Services",
+      "state": "serene",
+      "updated_at": "2026-04-05T14:07:00Z",
+      "message": "Error rate below baseline. Response times excellent.",
+      "url": null
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "worst_state": "calm",
+  "updated_at": "2026-04-05T13:00:00Z",
+  "triage": null,
+  "active_alert_count": 0,
+  "root_cause_alert": null,
+  "noise_alert_count": 0,
+  "services": [
+    {
+      "id": "gibraltar",
+      "display_name": "Gibraltar",
+      "state": "calm",
+      "updated_at": "2026-04-05T13:00:00Z",
+      "message": "All systems nominal.",
+      "url": null
+    },
+    {
+      "id": "orderbond",
+      "display_name": "OrderBond",
+      "state": "calm",
+      "updated_at": "2026-04-05T13:00:00Z",
+      "message": "All systems nominal.",
+      "url": null
+    },
+    {
+      "id": "unicorn",
+      "display_name": "Unicorn",
+      "state": "serene",
+      "updated_at": "2026-04-05T13:00:00Z",
+      "message": "Error rate below baseline.",
+      "url": null
+    },
+    {
+      "id": "amex-services",
+      "display_name": "Amex Services",
+      "state": "calm",
+      "updated_at": "2026-04-05T13:00:00Z",
+      "message": "All systems nominal.",
+      "url": null
+    },
+    {
+      "id": "hotel-services",
+      "display_name": "Hotel Services",
+      "state": "serene",
+      "updated_at": "2026-04-05T13:00:00Z",
+      "message": "Error rate below baseline. Response times excellent.",
+      "url": null
+    }
+  ]
+}
