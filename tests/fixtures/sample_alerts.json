@@ -1,0 +1,135 @@
+[
+  {
+    "name": "Gibraltar-Expedia-5xx",
+    "severity": "critical",
+    "service": "gibraltar",
+    "triggered_at": "2026-04-05T14:02:00Z",
+    "description": "Error rate 8.3%, elevated from baseline 0.2%. Expedia upstream returning 5xx."
+  },
+  {
+    "name": "OrderBond-SLO-ErrorRate",
+    "severity": "warning",
+    "service": "orderbond",
+    "triggered_at": "2026-04-05T14:03:00Z",
+    "description": "SLO violation — error rate above threshold."
+  },
+  {
+    "name": "OrderBond-SLO-Latency",
+    "severity": "warning",
+    "service": "orderbond",
+    "triggered_at": "2026-04-05T14:03:15Z",
+    "description": "SLO violation — p99 latency above 500ms."
+  },
+  {
+    "name": "OrderBond-SLO-Availability",
+    "severity": "warning",
+    "service": "orderbond",
+    "triggered_at": "2026-04-05T14:03:30Z",
+    "description": "SLO violation — availability below 99.9%."
+  },
+  {
+    "name": "Gibraltar-SLO-ErrorRate",
+    "severity": "warning",
+    "service": "gibraltar",
+    "triggered_at": "2026-04-05T14:03:00Z",
+    "description": "SLO violation — error rate above threshold."
+  },
+  {
+    "name": "Gibraltar-SLO-Latency",
+    "severity": "warning",
+    "service": "gibraltar",
+    "triggered_at": "2026-04-05T14:03:10Z",
+    "description": "SLO violation — p99 latency above 500ms."
+  },
+  {
+    "name": "Gibraltar-SLO-Availability",
+    "severity": "warning",
+    "service": "gibraltar",
+    "triggered_at": "2026-04-05T14:03:20Z",
+    "description": "SLO violation — availability below 99.9%."
+  },
+  {
+    "name": "Gibraltar-SLO-Throughput",
+    "severity": "warning",
+    "service": "gibraltar",
+    "triggered_at": "2026-04-05T14:03:25Z",
+    "description": "SLO violation — request throughput drop."
+  },
+  {
+    "name": "Unicorn-SLO-ErrorRate",
+    "severity": "warning",
+    "service": "unicorn",
+    "triggered_at": "2026-04-05T14:04:00Z",
+    "description": "SLO violation — error rate above threshold."
+  },
+  {
+    "name": "Unicorn-SLO-Latency",
+    "severity": "warning",
+    "service": "unicorn",
+    "triggered_at": "2026-04-05T14:04:05Z",
+    "description": "SLO violation — p99 latency above 500ms."
+  },
+  {
+    "name": "AmexServices-SLO-ErrorRate",
+    "severity": "warning",
+    "service": "amex-services",
+    "triggered_at": "2026-04-05T14:04:10Z",
+    "description": "SLO violation — error rate above threshold."
+  },
+  {
+    "name": "AmexServices-SLO-Latency",
+    "severity": "warning",
+    "service": "amex-services",
+    "triggered_at": "2026-04-05T14:04:15Z",
+    "description": "SLO violation — p99 latency above 500ms."
+  },
+  {
+    "name": "AmexServices-SLO-Availability",
+    "severity": "warning",
+    "service": "amex-services",
+    "triggered_at": "2026-04-05T14:04:20Z",
+    "description": "SLO violation — availability below 99.9%."
+  },
+  {
+    "name": "HotelServices-SLO-ErrorRate",
+    "severity": "warning",
+    "service": "hotel-services",
+    "triggered_at": "2026-04-05T14:04:25Z",
+    "description": "SLO violation — error rate above threshold."
+  },
+  {
+    "name": "HotelServices-SLO-Latency",
+    "severity": "warning",
+    "service": "hotel-services",
+    "triggered_at": "2026-04-05T14:04:30Z",
+    "description": "SLO violation — p99 latency above 500ms."
+  },
+  {
+    "name": "HotelServices-SLO-Availability",
+    "severity": "warning",
+    "service": "hotel-services",
+    "triggered_at": "2026-04-05T14:04:35Z",
+    "description": "SLO violation — availability below 99.9%."
+  },
+  {
+    "name": "HotelServices-SLO-Throughput",
+    "severity": "warning",
+    "service": "hotel-services",
+    "triggered_at": "2026-04-05T14:04:40Z",
+    "description": "SLO violation — request throughput drop."
+  },
+  {
+    "name": "OrderBond-SLO-Throughput",
+    "severity": "warning",
+    "service": "orderbond",
+    "triggered_at": "2026-04-05T14:04:45Z",
+    "description": "SLO violation — request throughput drop."
+  },
+  {
+    "name": "Unicorn-SLO-Availability",
+    "severity": "warning",
+    "service": "unicorn",
+    "triggered_at": "2026-04-05T14:04:50Z",
+    "description": "SLO violation — availability below 99.9%."
+  }
+]
