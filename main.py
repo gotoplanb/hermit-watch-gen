@@ -41,16 +41,23 @@ templates = Jinja2Templates(directory="templates")
 # Auth dependency
 # ---------------------------------------------------------------------------
 
-async def verify_token(request: Request):
-    """Check READ_TOKEN if set. No-op when unset."""
-    if not READ_TOKEN:
-        return
-    token = request.query_params.get("token")
+def _extract_token(request: Request) -> str:
+    """Pull token from query param or Bearer header."""
+    token = request.query_params.get("token", "")
     if not token:
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer "):
             token = auth[7:]
-    if token != READ_TOKEN:
+    return token
+
+
+async def verify_token(request: Request):
+    """Check READ_TOKEN or WRITE_TOKEN. No-op when neither is set."""
+    if not READ_TOKEN and not WRITE_TOKEN:
+        return
+    token = _extract_token(request)
+    valid = {t for t in (READ_TOKEN, WRITE_TOKEN) if t}
+    if token not in valid:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -58,11 +65,7 @@ async def verify_write_token(request: Request):
     """Require WRITE_TOKEN for POST endpoints. Always enforced."""
     if not WRITE_TOKEN:
         raise HTTPException(status_code=403, detail="Write access not configured")
-    token = request.query_params.get("token")
-    if not token:
-        auth = request.headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            token = auth[7:]
+    token = _extract_token(request)
     if token != WRITE_TOKEN:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
