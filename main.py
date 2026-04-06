@@ -19,7 +19,10 @@ import storage  # noqa: E402  (after dotenv so env is loaded)
 # Config
 # ---------------------------------------------------------------------------
 
-API_TOKEN = os.environ.get("API_TOKEN", "")
+READ_TOKEN = os.environ.get("READ_TOKEN", "")
+WRITE_TOKEN = os.environ.get("WRITE_TOKEN", "")
+
+VALID_STATES = ("serene", "calm", "unsettled", "squall", "storm")
 
 DEFAULT_SERVICES = [
     {"id": "gibraltar", "display_name": "Gibraltar"},
@@ -39,15 +42,28 @@ templates = Jinja2Templates(directory="templates")
 # ---------------------------------------------------------------------------
 
 async def verify_token(request: Request):
-    """Check API_TOKEN if set. No-op when unset."""
-    if not API_TOKEN:
+    """Check READ_TOKEN if set. No-op when unset."""
+    if not READ_TOKEN:
         return
     token = request.query_params.get("token")
     if not token:
         auth = request.headers.get("authorization", "")
         if auth.startswith("Bearer "):
             token = auth[7:]
-    if token != API_TOKEN:
+    if token != READ_TOKEN:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+async def verify_write_token(request: Request):
+    """Require WRITE_TOKEN for POST endpoints. Always enforced."""
+    if not WRITE_TOKEN:
+        raise HTTPException(status_code=403, detail="Write access not configured")
+    token = request.query_params.get("token")
+    if not token:
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Bearer "):
+            token = auth[7:]
+    if token != WRITE_TOKEN:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -171,6 +187,175 @@ async def incident_by_timestamp(timestamp: str):
 async def status_page(request: Request):
     token = request.query_params.get("token", "")
     return templates.TemplateResponse("status.html", {"request": request, "token": token})
+
+
+# ---------------------------------------------------------------------------
+# Schema (self-documenting API for write clients)
+# ---------------------------------------------------------------------------
+
+@app.get("/schema", dependencies=[Depends(verify_token)])
+async def schema():
+    """Return expected payload shapes for all POST endpoints, with examples."""
+    return {
+        "endpoints": {
+            "POST /status": {
+                "description": "Update current system state. Server adds updated_at automatically.",
+                "fields": {
+                    "worst_state": {"type": "string", "required": True, "enum": list(VALID_STATES)},
+                    "triage": {"type": "string|null", "required": True, "description": "Triage prose for on-call engineer, or null if no incidents"},
+                    "active_alert_count": {"type": "integer", "required": True},
+                    "root_cause_alert": {"type": "string|null", "required": True},
+                    "noise_alert_count": {"type": "integer", "required": True},
+                    "services": {
+                        "type": "array",
+                        "required": True,
+                        "items": {
+                            "id": {"type": "string", "required": True},
+                            "display_name": {"type": "string", "required": True},
+                            "state": {"type": "string", "required": True, "enum": list(VALID_STATES)},
+                            "message": {"type": "string", "required": True},
+                            "url": {"type": "string|null", "required": False},
+                        },
+                    },
+                },
+                "example": {
+                    "worst_state": "squall",
+                    "triage": "Gibraltar is seeing elevated 5xx rates from Expedia upstream (root cause). 18 downstream SLO violation alerts are byproduct noise.",
+                    "active_alert_count": 19,
+                    "root_cause_alert": "Gibraltar-Expedia-5xx",
+                    "noise_alert_count": 18,
+                    "services": [
+                        {"id": "gibraltar", "display_name": "Gibraltar", "state": "squall", "message": "Error rate 8.3%, elevated from baseline 0.2%.", "url": None},
+                        {"id": "orderbond", "display_name": "OrderBond", "state": "unsettled", "message": "SLO violation — downstream of Gibraltar Expedia issue.", "url": None},
+                        {"id": "unicorn", "display_name": "Unicorn", "state": "calm", "message": "All systems nominal.", "url": None},
+                        {"id": "amex-services", "display_name": "Amex Services", "state": "calm", "message": "All systems nominal.", "url": None},
+                        {"id": "hotel-services", "display_name": "Hotel Services", "state": "serene", "message": "Error rate below baseline. Response times excellent.", "url": None},
+                    ],
+                },
+            },
+            "POST /digest": {
+                "description": "Submit a new health digest. Server timestamps it automatically.",
+                "fields": {
+                    "content": {"type": "string", "required": True, "description": "Markdown digest content"},
+                },
+                "example": {
+                    "content": "## System Health — 14:00 UTC\n\nOverall the system is in good shape. Gibraltar running clean, error rates at 0.2%.\n\nOrderBond latency trending slightly upward since 13:15 UTC.\n\n**One thing to watch:** OrderBond p99 latency creep.",
+                },
+            },
+            "POST /incident": {
+                "description": "Submit an incident snapshot. Server timestamps it automatically.",
+                "fields": {
+                    "worst_state": {"type": "string", "required": True, "enum": list(VALID_STATES)},
+                    "triage": {"type": "string", "required": True},
+                    "active_alert_count": {"type": "integer", "required": True},
+                    "root_cause_alert": {"type": "string", "required": True},
+                    "noise_alert_count": {"type": "integer", "required": True},
+                },
+                "example": {
+                    "worst_state": "squall",
+                    "triage": "Gibraltar is seeing elevated 5xx rates from Expedia upstream.",
+                    "active_alert_count": 19,
+                    "root_cause_alert": "Gibraltar-Expedia-5xx",
+                    "noise_alert_count": 18,
+                },
+            },
+        },
+        "auth": "Include WRITE_TOKEN as ?token=VALUE or Authorization: Bearer VALUE",
+        "note": "All POST endpoints add updated_at/generated_at timestamps server-side.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Write endpoints (POST)
+# ---------------------------------------------------------------------------
+
+@app.post("/status", dependencies=[Depends(verify_write_token)])
+async def post_status(request: Request):
+    """Accept a full status payload from an external SRE agent."""
+    from datetime import datetime, timezone
+    body = await request.json()
+
+    worst_state = body.get("worst_state")
+    if worst_state not in VALID_STATES:
+        raise HTTPException(status_code=422, detail=f"Invalid worst_state: {worst_state!r}. Must be one of {VALID_STATES}")
+
+    services = body.get("services")
+    if not isinstance(services, list) or not services:
+        raise HTTPException(status_code=422, detail="services must be a non-empty array")
+
+    for svc in services:
+        if svc.get("state") not in VALID_STATES:
+            raise HTTPException(status_code=422, detail=f"Invalid service state: {svc.get('state')!r} for {svc.get('id')}")
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    state_data = {
+        "worst_state": worst_state,
+        "updated_at": now,
+        "triage": body.get("triage"),
+        "active_alert_count": body.get("active_alert_count", 0),
+        "root_cause_alert": body.get("root_cause_alert"),
+        "noise_alert_count": body.get("noise_alert_count", 0),
+        "services": [
+            {
+                "id": s["id"],
+                "display_name": s["display_name"],
+                "state": s["state"],
+                "updated_at": now,
+                "message": s.get("message", ""),
+                "url": s.get("url"),
+            }
+            for s in services
+        ],
+    }
+
+    storage.write_current_state(state_data)
+    app.state.last_incident_check = now
+
+    return {"ok": True, "updated_at": now}
+
+
+@app.post("/digest", dependencies=[Depends(verify_write_token)])
+async def post_digest(request: Request):
+    """Accept a markdown digest from an external SRE agent."""
+    from datetime import datetime, timezone
+    body = await request.json()
+
+    content = body.get("content")
+    if not content or not isinstance(content, str):
+        raise HTTPException(status_code=422, detail="content must be a non-empty string")
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    storage.write_digest(now, content)
+    app.state.last_digest = now
+
+    return {"ok": True, "generated_at": now}
+
+
+@app.post("/incident", dependencies=[Depends(verify_write_token)])
+async def post_incident(request: Request):
+    """Accept an incident snapshot from an external SRE agent."""
+    from datetime import datetime, timezone
+    body = await request.json()
+
+    worst_state = body.get("worst_state")
+    if worst_state not in VALID_STATES:
+        raise HTTPException(status_code=422, detail=f"Invalid worst_state: {worst_state!r}")
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    incident_data = {
+        "worst_state": worst_state,
+        "timestamp": now,
+        "triage": body.get("triage"),
+        "active_alert_count": body.get("active_alert_count", 0),
+        "root_cause_alert": body.get("root_cause_alert"),
+        "noise_alert_count": body.get("noise_alert_count", 0),
+    }
+
+    storage.write_incident(now, incident_data)
+
+    return {"ok": True, "timestamp": now}
 
 
 # ---------------------------------------------------------------------------
