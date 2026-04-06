@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Hermit Watch</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦀</text></svg>">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     :root {
@@ -49,12 +50,24 @@
     }
     .service-name { font-weight: 500; flex: 1; }
     .service-message { font-size: 0.8rem; color: var(--text-secondary); flex: 2; text-align: right; }
+    .digest-section {
+      margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--surface);
+    }
+    .digest-content {
+      background: var(--surface); border-radius: 12px; padding: 1.25rem 1.5rem;
+      line-height: 1.7; font-size: 0.9rem;
+    }
+    .digest-content h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: var(--text); }
+    .digest-content p { margin-bottom: 0.75rem; color: var(--text-secondary); }
+    .digest-content strong { color: var(--text); }
+    .digest-meta {
+      font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;
+    }
+    .no-digest { color: var(--text-secondary); font-size: 0.85rem; font-style: italic; }
     footer {
       text-align: center; color: var(--text-secondary); font-size: 0.8rem;
-      padding-top: 1rem; border-top: 1px solid var(--surface);
+      padding-top: 1rem; margin-top: 1.5rem; border-top: 1px solid var(--surface);
     }
-    footer a { color: var(--calm); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
     .calm-art {
       text-align: center; font-size: 3rem; margin: 1rem 0;
     }
@@ -86,13 +99,35 @@
       </template>
     </div>
 
+    <div class="digest-section">
+      <template x-if="digest">
+        <div>
+          <div class="digest-meta">Digest — <span x-text="digest.generated_at"></span></div>
+          <div class="digest-content" x-html="renderMarkdown(digest.content)"></div>
+        </div>
+      </template>
+      <template x-if="!digest">
+        <p class="no-digest">No digest available yet.</p>
+      </template>
+    </div>
+
     <footer>
       <p>Updated <span x-text="status.updated_at || '—'"></span></p>
-      <p style="margin-top: 0.5rem;"><a :href="digestUrl">Latest Digest</a></p>
     </footer>
   </div>
 
   <script>
+    function renderMarkdown(md) {
+      if (!md) return '';
+      return md
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/^/, '<p>').replace(/$/, '</p>')
+        .replace(/<p><h2>/g, '<h2>').replace(/<\/h2><\/p>/g, '</h2>');
+    }
+
     function statusApp() {
       const token = '{{ token }}';
       const qs = token ? `?token=${token}` : '';
@@ -100,13 +135,11 @@
 
       return {
         status: {},
+        digest: null,
         get sortedServices() {
           return (this.status.services || []).slice().sort(
             (a, b) => (severity[a.state] ?? 5) - (severity[b.state] ?? 5)
           );
-        },
-        get digestUrl() {
-          return `/digest/latest${qs}`;
         },
         async fetchStatus() {
           try {
@@ -116,9 +149,19 @@
             console.error('Failed to fetch status:', e);
           }
         },
+        async fetchDigest() {
+          try {
+            const resp = await fetch(`/digest/latest${qs}`);
+            if (resp.ok) this.digest = await resp.json();
+          } catch (e) {
+            // No digest yet, that's fine
+          }
+        },
         init() {
           this.fetchStatus();
+          this.fetchDigest();
           setInterval(() => this.fetchStatus(), 30000);
+          setInterval(() => this.fetchDigest(), 60000);
         }
       };
     }
