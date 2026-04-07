@@ -94,22 +94,29 @@ def list_digests() -> list[str]:
 # ---------------------------------------------------------------------------
 
 def cleanup_old_files(retention_days: int) -> None:
-    """Delete incident and digest files older than retention_days."""
-    if retention_days <= 0:
+    """Delete incident and digest files older than retention_days (legacy single-value API)."""
+    cleanup(incident_retention_days=retention_days, digest_retention_days=retention_days)
+
+
+def cleanup(incident_retention_days: int = 1, digest_retention_days: int = 7) -> None:
+    """Delete incident and digest files with separate retention periods."""
+    _cleanup_dir(DATA_DIR / "incidents", incident_retention_days)
+    _cleanup_dir(DATA_DIR / "digests", digest_retention_days)
+
+
+def _cleanup_dir(dirpath: Path, retention_days: int) -> None:
+    """Delete files in a directory older than retention_days."""
+    if retention_days <= 0 or not dirpath.exists():
         return
     cutoff = datetime.now(timezone.utc).timestamp() - (retention_days * 86400)
-    for subdir in ("incidents", "digests"):
-        dirpath = DATA_DIR / subdir
-        if not dirpath.exists():
-            continue
-        for f in dirpath.iterdir():
-            ts_str = f.stem.replace(".", ":")  # unsanitize dots back to colons
-            try:
-                file_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-                if file_dt.timestamp() < cutoff:
-                    f.unlink()
-            except (ValueError, OSError):
-                pass
+    for f in dirpath.iterdir():
+        ts_str = f.stem.replace(".", ":")  # unsanitize dots back to colons
+        try:
+            file_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            if file_dt.timestamp() < cutoff:
+                f.unlink()
+        except (ValueError, OSError):
+            pass
 
 
 # ---------------------------------------------------------------------------

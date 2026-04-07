@@ -24,6 +24,9 @@ WRITE_TOKEN = os.environ.get("WRITE_TOKEN", "")
 
 VALID_STATES = ("serene", "calm", "unsettled", "squall", "storm")
 
+INCIDENT_RETENTION_DAYS = int(os.environ.get("INCIDENT_RETENTION_DAYS", "1"))
+DIGEST_RETENTION_DAYS = int(os.environ.get("DIGEST_RETENTION_DAYS", "7"))
+
 DEFAULT_SERVICES = [
     {"id": "gibraltar", "display_name": "Gibraltar"},
     {"id": "orderbond", "display_name": "OrderBond"},
@@ -313,6 +316,7 @@ async def post_status(request: Request):
     }
 
     storage.write_current_state(state_data)
+    storage.cleanup(INCIDENT_RETENTION_DAYS, DIGEST_RETENTION_DAYS)
     app.state.last_incident_check = now
 
     return {"ok": True, "updated_at": now}
