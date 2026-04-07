@@ -59,7 +59,7 @@ class TestDigests:
         content = "## System Health — 14:00 UTC\n\nAll good."
         storage.write_digest(ts, content)
         result = storage.read_digest(ts)
-        assert result == {"generated_at": ts, "content": content}
+        assert result == {"generated_at": ts, "type": "scheduled", "content": content}
 
     def test_read_missing_returns_none(self):
         assert storage.read_digest("2026-01-01T00:00:00Z") is None

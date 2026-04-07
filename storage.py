@@ -60,20 +60,25 @@ def list_incidents() -> list[str]:
 # Digests
 # ---------------------------------------------------------------------------
 
-def write_digest(timestamp: str, content: str) -> None:
-    """Write data/digests/{timestamp}.md."""
+def write_digest(timestamp: str, content: str, obs_type: str = "scheduled") -> None:
+    """Write data/digests/{timestamp}.json."""
     ensure_data_dirs()
-    path = DATA_DIR / "digests" / f"{_safe_filename(timestamp)}.md"
-    _atomic_write_text(path, content)
+    path = DATA_DIR / "digests" / f"{_safe_filename(timestamp)}.json"
+    data = {"generated_at": timestamp, "type": obs_type, "content": content}
+    _atomic_write_json(path, data)
 
 
 def read_digest(timestamp: str) -> dict | None:
-    """Read a digest as {generated_at, content}."""
-    path = DATA_DIR / "digests" / f"{_safe_filename(timestamp)}.md"
-    if not path.exists():
-        return None
-    content = path.read_text(encoding="utf-8")
-    return {"generated_at": timestamp, "content": content}
+    """Read a digest as {generated_at, type, content}."""
+    # Try JSON first, fall back to legacy .md files
+    json_path = DATA_DIR / "digests" / f"{_safe_filename(timestamp)}.json"
+    if json_path.exists():
+        return _read_json(json_path)
+    md_path = DATA_DIR / "digests" / f"{_safe_filename(timestamp)}.md"
+    if md_path.exists():
+        content = md_path.read_text(encoding="utf-8")
+        return {"generated_at": timestamp, "type": "scheduled", "content": content}
+    return None
 
 
 def read_latest_digest() -> dict | None:
@@ -86,7 +91,15 @@ def read_latest_digest() -> dict | None:
 
 def list_digests() -> list[str]:
     """Return digest timestamps, newest first."""
-    return _list_timestamps(DATA_DIR / "digests", ".md")
+    # Support both .json and legacy .md files
+    dirpath = DATA_DIR / "digests"
+    if not dirpath.exists():
+        return []
+    names = []
+    for f in dirpath.iterdir():
+        if f.suffix in (".json", ".md"):
+            names.append(f.stem.replace(".", ":"))
+    return sorted(set(names), reverse=True)
 
 
 # ---------------------------------------------------------------------------

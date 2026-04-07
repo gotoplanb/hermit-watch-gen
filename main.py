@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import time
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -23,6 +24,7 @@ READ_TOKEN = os.environ.get("READ_TOKEN", "")
 WRITE_TOKEN = os.environ.get("WRITE_TOKEN", "")
 
 VALID_STATES = ("serene", "calm", "unsettled", "squall", "storm")
+VALID_TYPES = ("scheduled", "manual")
 
 INCIDENT_RETENTION_DAYS = int(os.environ.get("INCIDENT_RETENTION_DAYS", "7"))
 DIGEST_RETENTION_DAYS = int(os.environ.get("DIGEST_RETENTION_DAYS", "7"))
@@ -153,8 +155,10 @@ async def digest_latest():
 
 
 @app.get("/digests", dependencies=[Depends(verify_token)])
-async def digests(page: int = 1, page_size: int = 20):
+async def digests(page: int = 1, page_size: int = 20, type: Optional[str] = None):
     all_ts = storage.list_digests()
+    if type:
+        all_ts = [ts for ts in all_ts if (storage.read_digest(ts) or {}).get("type") == type]
     total = len(all_ts)
     start = (page - 1) * page_size
     items = all_ts[start:start + page_size]
@@ -170,21 +174,24 @@ async def digest_by_timestamp(timestamp: str):
 
 
 @app.get("/incidents", dependencies=[Depends(verify_token)])
-async def incidents(page: int = 1, page_size: int = 20):
+async def incidents(page: int = 1, page_size: int = 20, type: Optional[str] = None):
     ts_list = storage.list_incidents()
-    total = len(ts_list)
-    start = (page - 1) * page_size
-    page_ts = ts_list[start:start + page_size]
-    items = []
-    for ts in page_ts:
+    all_incidents = []
+    for ts in ts_list:
         inc = storage.read_incident(ts)
         if inc:
-            items.append({
+            if type and inc.get("type") != type:
+                continue
+            all_incidents.append({
                 "timestamp": ts,
                 "worst_state": inc.get("worst_state"),
+                "type": inc.get("type", "scheduled"),
                 "root_cause_alert": inc.get("root_cause_alert"),
                 "active_alert_count": inc.get("active_alert_count"),
             })
+    total = len(all_incidents)
+    start = (page - 1) * page_size
+    items = all_incidents[start:start + page_size]
     return {"incidents": items, "total": total, "page": page, "page_size": page_size}
 
 
@@ -215,6 +222,7 @@ async def schema():
                 "description": "Update current system state. Server adds updated_at automatically.",
                 "fields": {
                     "worst_state": {"type": "string", "required": True, "enum": list(VALID_STATES)},
+                    "type": {"type": "string", "required": False, "enum": list(VALID_TYPES), "default": "scheduled", "description": "scheduled = routine check, manual = special observation"},
                     "triage": {"type": "string|null", "required": True, "description": "Triage prose for on-call engineer, or null if no incidents"},
                     "active_alert_count": {"type": "integer", "required": True},
                     "root_cause_alert": {"type": "string|null", "required": True},
@@ -250,6 +258,7 @@ async def schema():
                 "description": "Submit a new health digest. Server timestamps it automatically.",
                 "fields": {
                     "content": {"type": "string", "required": True, "description": "Markdown digest content"},
+                    "type": {"type": "string", "required": False, "enum": list(VALID_TYPES), "default": "scheduled", "description": "scheduled = routine hourly digest, manual = special observation"},
                 },
                 "example": {
                     "content": "## System Health — 14:00 UTC\n\nOverall the system is in good shape. Gibraltar running clean, error rates at 0.2%.\n\nOrderBond latency trending slightly upward since 13:15 UTC.\n\n**One thing to watch:** OrderBond p99 latency creep.",
@@ -259,6 +268,7 @@ async def schema():
                 "description": "Submit an incident snapshot. Server timestamps it automatically.",
                 "fields": {
                     "worst_state": {"type": "string", "required": True, "enum": list(VALID_STATES)},
+                    "type": {"type": "string", "required": False, "enum": list(VALID_TYPES), "default": "scheduled", "description": "scheduled = routine check, manual = special observation"},
                     "triage": {"type": "string", "required": True},
                     "active_alert_count": {"type": "integer", "required": True},
                     "root_cause_alert": {"type": "string", "required": True},
@@ -302,9 +312,14 @@ async def post_status(request: Request):
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    obs_type = body.get("type", "scheduled")
+    if obs_type not in VALID_TYPES:
+        obs_type = "scheduled"
+
     state_data = {
         "worst_state": worst_state,
         "updated_at": now,
+        "type": obs_type,
         "triage": body.get("triage"),
         "active_alert_count": body.get("active_alert_count", 0),
         "root_cause_alert": body.get("root_cause_alert"),
@@ -339,11 +354,15 @@ async def post_digest(request: Request):
     if not content or not isinstance(content, str):
         raise HTTPException(status_code=422, detail="content must be a non-empty string")
 
+    obs_type = body.get("type", "scheduled")
+    if obs_type not in VALID_TYPES:
+        obs_type = "scheduled"
+
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    storage.write_digest(now, content)
+    storage.write_digest(now, content, obs_type=obs_type)
     app.state.last_digest = now
 
-    return {"ok": True, "generated_at": now}
+    return {"ok": True, "generated_at": now, "type": obs_type}
 
 
 @app.post("/incident", dependencies=[Depends(verify_write_token)])
@@ -358,9 +377,14 @@ async def post_incident(request: Request):
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    obs_type = body.get("type", "scheduled")
+    if obs_type not in VALID_TYPES:
+        obs_type = "scheduled"
+
     incident_data = {
         "worst_state": worst_state,
         "timestamp": now,
+        "type": obs_type,
         "triage": body.get("triage"),
         "active_alert_count": body.get("active_alert_count", 0),
         "root_cause_alert": body.get("root_cause_alert"),
