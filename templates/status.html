@@ -62,7 +62,14 @@
     .digest-content strong { color: var(--text); }
     .digest-meta {
       font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;
+      display: flex; align-items: center; gap: 0.5rem;
     }
+    .digest-type {
+      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.05em;
+      padding: 0.15rem 0.5rem; border-radius: 4px;
+    }
+    .digest-type.scheduled { background: var(--surface); color: var(--text-secondary); }
+    .digest-type.manual { background: var(--unsettled); color: var(--bg); }
     .no-digest { color: var(--text-secondary); font-size: 0.85rem; font-style: italic; }
     footer {
       text-align: center; color: var(--text-secondary); font-size: 0.8rem;
@@ -106,7 +113,10 @@
     <div class="digest-section">
       <template x-if="digest">
         <div>
-          <div class="digest-meta">Digest — <span x-text="digest.generated_at"></span></div>
+          <div class="digest-meta">
+            <span x-text="digest.generated_at"></span>
+            <span class="digest-type" :class="digest.type || 'scheduled'" x-text="(digest.type || 'scheduled').toUpperCase()"></span>
+          </div>
           <div class="digest-content" x-html="renderMarkdown(digest.content)"></div>
         </div>
       </template>
