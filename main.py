@@ -153,8 +153,12 @@ async def digest_latest():
 
 
 @app.get("/digests", dependencies=[Depends(verify_token)])
-async def digests():
-    return {"digests": storage.list_digests()}
+async def digests(page: int = 1, page_size: int = 20):
+    all_ts = storage.list_digests()
+    total = len(all_ts)
+    start = (page - 1) * page_size
+    items = all_ts[start:start + page_size]
+    return {"digests": items, "total": total, "page": page, "page_size": page_size}
 
 
 @app.get("/digest/{timestamp}", dependencies=[Depends(verify_token)])
@@ -166,10 +170,13 @@ async def digest_by_timestamp(timestamp: str):
 
 
 @app.get("/incidents", dependencies=[Depends(verify_token)])
-async def incidents():
+async def incidents(page: int = 1, page_size: int = 20):
     ts_list = storage.list_incidents()
+    total = len(ts_list)
+    start = (page - 1) * page_size
+    page_ts = ts_list[start:start + page_size]
     items = []
-    for ts in ts_list:
+    for ts in page_ts:
         inc = storage.read_incident(ts)
         if inc:
             items.append({
@@ -178,7 +185,7 @@ async def incidents():
                 "root_cause_alert": inc.get("root_cause_alert"),
                 "active_alert_count": inc.get("active_alert_count"),
             })
-    return {"incidents": items}
+    return {"incidents": items, "total": total, "page": page, "page_size": page_size}
 
 
 @app.get("/incidents/{timestamp}", dependencies=[Depends(verify_token)])
