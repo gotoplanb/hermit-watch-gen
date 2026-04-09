@@ -100,6 +100,11 @@
       <div class="triage" x-text="status.triage"></div>
     </template>
 
+    <div class="digest-meta" x-show="status.updated_at">
+      <span x-text="status.updated_at"></span>
+      <span class="digest-type" :class="status.type || 'scheduled'" x-text="(status.type || 'scheduled').toUpperCase()" x-show="status.updated_at"></span>
+    </div>
+
     <div class="service-list">
       <template x-for="svc in sortedServices" :key="svc.id">
         <div class="service-row">
@@ -125,9 +130,7 @@
       </template>
     </div>
 
-    <footer>
-      <p>Updated <span x-text="status.updated_at || '—'"></span></p>
-    </footer>
+    <footer></footer>
   </div>
 
   <script>
