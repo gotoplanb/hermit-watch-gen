@@ -102,6 +102,7 @@
 
     <div class="digest-meta" x-show="status.updated_at">
       <span x-text="status.updated_at"></span>
+      <span x-text="toCentral(status.updated_at)"></span>
       <span class="digest-type" :class="status.type || 'scheduled'" x-text="(status.type || 'scheduled').toUpperCase()" x-show="status.updated_at"></span>
     </div>
 
@@ -120,6 +121,7 @@
         <div>
           <div class="digest-meta">
             <span x-text="digest.generated_at"></span>
+            <span x-text="toCentral(digest.generated_at)"></span>
             <span class="digest-type" :class="digest.type || 'scheduled'" x-text="(digest.type || 'scheduled').toUpperCase()"></span>
           </div>
           <div class="digest-content" x-html="renderMarkdown(digest.content)"></div>
@@ -134,6 +136,14 @@
   </div>
 
   <script>
+    function toCentral(utcStr) {
+      if (!utcStr) return '';
+      try {
+        const d = new Date(utcStr);
+        return d.toLocaleString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true }) + ' CT';
+      } catch (e) { return ''; }
+    }
+
     function renderMarkdown(md) {
       if (!md) return '';
       return md
