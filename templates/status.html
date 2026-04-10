@@ -123,6 +123,7 @@
           <div class="digest-meta">
             <span x-text="digest.generated_at"></span>
             <span x-text="toCentral(digest.generated_at)"></span>
+            <span x-text="timeAgo(digest.generated_at)"></span>
             <span class="digest-type" :class="digest.type || 'scheduled'" x-text="(digest.type || 'scheduled').toUpperCase()"></span>
           </div>
           <div class="digest-content" x-html="renderMarkdown(digest.content)"></div>
