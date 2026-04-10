@@ -103,6 +103,7 @@
     <div class="digest-meta" x-show="status.updated_at">
       <span x-text="status.updated_at"></span>
       <span x-text="toCentral(status.updated_at)"></span>
+      <span x-text="timeAgo(status.updated_at)"></span>
       <span class="digest-type" :class="status.type || 'scheduled'" x-text="(status.type || 'scheduled').toUpperCase()" x-show="status.updated_at"></span>
     </div>
 
@@ -142,6 +143,16 @@
         const d = new Date(utcStr);
         return d.toLocaleString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit', hour12: true }) + ' CT';
       } catch (e) { return ''; }
+    }
+
+    function timeAgo(utcStr) {
+      if (!utcStr) return '';
+      const mins = Math.floor((Date.now() - new Date(utcStr).getTime()) / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return mins + 'm ago';
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return hrs + 'h ago';
+      return Math.floor(hrs / 24) + 'd ago';
     }
 
     function renderMarkdown(md) {
