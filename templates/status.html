@@ -211,8 +211,8 @@
         init() {
           this.fetchStatus();
           this.fetchDigest();
-          setInterval(() => this.fetchStatus(), 30000);
-          setInterval(() => this.fetchDigest(), 60000);
+          setInterval(() => this.fetchStatus(), 60000);
+          setInterval(() => this.fetchDigest(), 300000);
         }
       };
     }
