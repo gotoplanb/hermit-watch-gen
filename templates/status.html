@@ -29,7 +29,10 @@
     }
     .container { max-width: 640px; margin: 0 auto; }
     header { text-align: center; margin-bottom: 2rem; }
-    header h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+    header h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.25rem; }
+    .org-label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; }
+    .org-switch { font-size: 0.75rem; color: var(--text-secondary); text-decoration: none; }
+    .org-switch:hover { color: var(--text); }
     .state-indicator {
       width: 120px; height: 120px; border-radius: 50%;
       margin: 1.5rem auto; display: flex; align-items: center; justify-content: center;
@@ -94,8 +97,11 @@
   <div class="container" x-data="statusApp()" x-init="init()">
     <header>
       <h1>Hermit Watch</h1>
+      <div class="org-label">{{ org_display }}</div>
       <div class="state-indicator" :style="`background: var(--${displayState})`"
            x-text="displayLabel"></div>
+      {% set switch_qs = "?token=" + token if token else "" %}
+      <a class="org-switch" href="{{ switch_qs }}">switch org</a>
     </header>
 
     <template x-if="isStale">
@@ -184,8 +190,17 @@
 
     function statusApp() {
       const token = '{{ token }}';
-      const qs = token ? `?token=${token}` : '';
+      const org = '{{ org }}';
       const severity = { storm: 0, squall: 1, unsettled: 2, calm: 3, serene: 4 };
+
+      function buildUrl(path, extra = {}) {
+        const p = new URLSearchParams();
+        if (token) p.set('token', token);
+        if (org) p.set('org', org);
+        Object.entries(extra).forEach(([k, v]) => p.set(k, String(v)));
+        const qs = p.toString();
+        return qs ? `${path}?${qs}` : path;
+      }
       const STALE_MS = 60 * 60 * 1000; // 1 hour
 
       return {
@@ -211,7 +226,7 @@
         },
         async fetchStatus() {
           try {
-            const resp = await fetch(`/status${qs}`);
+            const resp = await fetch(buildUrl('/status'));
             if (resp.ok) this.status = await resp.json();
           } catch (e) {
             console.error('Failed to fetch status:', e);
@@ -219,7 +234,7 @@
         },
         async fetchDigestList() {
           try {
-            const resp = await fetch(`/digests${qs ? qs + '&page_size=100' : '?page_size=100'}`);
+            const resp = await fetch(buildUrl('/digests', { page_size: 100 }));
             if (resp.ok) {
               const data = await resp.json();
               this.digestTimestamps = data.digests || [];
@@ -230,7 +245,7 @@
           const ts = this.digestTimestamps[index];
           if (!ts) return;
           try {
-            const resp = await fetch(`/digest/${encodeURIComponent(ts)}${qs}`);
+            const resp = await fetch(buildUrl(`/digest/${encodeURIComponent(ts)}`));
             if (resp.ok) { this.digest = await resp.json(); this.digestIndex = index; }
           } catch (e) {}
         },

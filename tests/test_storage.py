@@ -83,13 +83,14 @@ class TestDigests:
 
 class TestCleanup:
     def test_cleanup_old_files(self):
-        # Write an incident with a very old timestamp
+        from datetime import datetime, timezone
+        now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         storage.write_incident("2020-01-01T00:00:00Z", {"old": True})
-        storage.write_incident("2026-04-05T14:00:00Z", {"new": True})
+        storage.write_incident(now_ts, {"new": True})
         storage.cleanup_old_files(retention_days=7)
 
         assert storage.read_incident("2020-01-01T00:00:00Z") is None
-        assert storage.read_incident("2026-04-05T14:00:00Z") is not None
+        assert storage.read_incident(now_ts) is not None
 
     def test_cleanup_zero_retention_is_noop(self):
         storage.write_incident("2020-01-01T00:00:00Z", {"old": True})

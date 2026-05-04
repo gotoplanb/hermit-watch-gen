@@ -25,6 +25,8 @@ WRITE_TOKEN = os.environ.get("WRITE_TOKEN", "")
 
 VALID_STATES = ("serene", "calm", "unsettled", "squall", "storm")
 VALID_TYPES = ("scheduled", "manual")
+VALID_ORGS = ("amex", "multi")
+ORG_DISPLAY = {"amex": "American Express", "multi": "Multi-Tenant"}
 
 INCIDENT_RETENTION_DAYS = int(os.environ.get("INCIDENT_RETENTION_DAYS", "7"))
 DIGEST_RETENTION_DAYS = int(os.environ.get("DIGEST_RETENTION_DAYS", "7"))
@@ -106,6 +108,8 @@ async def lifespan(app: FastAPI):
         app.state.agent_running = True
 
     storage.ensure_data_dirs()
+    for org in VALID_ORGS:
+        storage.ensure_data_dirs(org)
     yield
 
     for t in agent_tasks:
@@ -132,33 +136,33 @@ async def health():
 
 
 @app.get("/status", dependencies=[Depends(verify_token)])
-async def status():
-    state = storage.read_current_state()
+async def status(org: str = ""):
+    state = storage.read_current_state(org=org)
     if state:
         return state
     return _default_status()
 
 
 @app.get("/services", dependencies=[Depends(verify_token)])
-async def services():
-    state = storage.read_current_state()
+async def services(org: str = ""):
+    state = storage.read_current_state(org=org)
     svc_list = state["services"] if state else _default_status()["services"]
     return sorted(svc_list, key=lambda s: STATE_SEVERITY.get(s.get("state", "calm"), 3))
 
 
 @app.get("/digest/latest", dependencies=[Depends(verify_token)])
-async def digest_latest():
-    d = storage.read_latest_digest()
+async def digest_latest(org: str = ""):
+    d = storage.read_latest_digest(org=org)
     if not d:
         raise HTTPException(status_code=404, detail="No digests available")
     return d
 
 
 @app.get("/digests", dependencies=[Depends(verify_token)])
-async def digests(page: int = 1, page_size: int = 20, type: Optional[str] = None):
-    all_ts = storage.list_digests()
+async def digests(org: str = "", page: int = 1, page_size: int = 20, type: Optional[str] = None):
+    all_ts = storage.list_digests(org=org)
     if type:
-        all_ts = [ts for ts in all_ts if (storage.read_digest(ts) or {}).get("type") == type]
+        all_ts = [ts for ts in all_ts if (storage.read_digest(ts, org=org) or {}).get("type") == type]
     total = len(all_ts)
     start = (page - 1) * page_size
     items = all_ts[start:start + page_size]
@@ -166,19 +170,19 @@ async def digests(page: int = 1, page_size: int = 20, type: Optional[str] = None
 
 
 @app.get("/digest/{timestamp}", dependencies=[Depends(verify_token)])
-async def digest_by_timestamp(timestamp: str):
-    d = storage.read_digest(timestamp)
+async def digest_by_timestamp(timestamp: str, org: str = ""):
+    d = storage.read_digest(timestamp, org=org)
     if not d:
         raise HTTPException(status_code=404, detail="Digest not found")
     return d
 
 
 @app.get("/incidents", dependencies=[Depends(verify_token)])
-async def incidents(page: int = 1, page_size: int = 20, type: Optional[str] = None):
-    ts_list = storage.list_incidents()
+async def incidents(org: str = "", page: int = 1, page_size: int = 20, type: Optional[str] = None):
+    ts_list = storage.list_incidents(org=org)
     all_incidents = []
     for ts in ts_list:
-        inc = storage.read_incident(ts)
+        inc = storage.read_incident(ts, org=org)
         if inc:
             if type and inc.get("type") != type:
                 continue
@@ -196,8 +200,8 @@ async def incidents(page: int = 1, page_size: int = 20, type: Optional[str] = No
 
 
 @app.get("/incidents/{timestamp}", dependencies=[Depends(verify_token)])
-async def incident_by_timestamp(timestamp: str):
-    inc = storage.read_incident(timestamp)
+async def incident_by_timestamp(timestamp: str, org: str = ""):
+    inc = storage.read_incident(timestamp, org=org)
     if not inc:
         raise HTTPException(status_code=404, detail="Incident not found")
     return inc
@@ -206,7 +210,13 @@ async def incident_by_timestamp(timestamp: str):
 @app.get("/", response_class=HTMLResponse, dependencies=[Depends(verify_token)])
 async def status_page(request: Request):
     token = request.query_params.get("token", "")
-    return templates.TemplateResponse("status.html", {"request": request, "token": token})
+    org = request.query_params.get("org", "")
+    if not org:
+        return templates.TemplateResponse("picker.html", {"request": request, "token": token})
+    return templates.TemplateResponse(
+        "status.html",
+        {"request": request, "token": token, "org": org, "org_display": ORG_DISPLAY.get(org, org)},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -298,6 +308,10 @@ async def post_status(request: Request):
     from datetime import datetime, timezone
     body = await request.json()
 
+    org = body.get("org", "")
+    if org and org not in VALID_ORGS:
+        raise HTTPException(status_code=422, detail=f"Invalid org: {org!r}. Must be one of {VALID_ORGS}")
+
     worst_state = body.get("worst_state")
     if worst_state not in VALID_STATES:
         raise HTTPException(status_code=422, detail=f"Invalid worst_state: {worst_state!r}. Must be one of {VALID_STATES}")
@@ -337,11 +351,11 @@ async def post_status(request: Request):
         ],
     }
 
-    storage.write_current_state(state_data)
-    storage.cleanup(INCIDENT_RETENTION_DAYS, DIGEST_RETENTION_DAYS)
+    storage.write_current_state(state_data, org=org)
+    storage.cleanup(INCIDENT_RETENTION_DAYS, DIGEST_RETENTION_DAYS, org=org)
     app.state.last_incident_check = now
 
-    return {"ok": True, "updated_at": now}
+    return {"ok": True, "updated_at": now, "org": org}
 
 
 @app.post("/digest", dependencies=[Depends(verify_write_token)])
@@ -349,6 +363,10 @@ async def post_digest(request: Request):
     """Accept a markdown digest from an external SRE agent."""
     from datetime import datetime, timezone
     body = await request.json()
+
+    org = body.get("org", "")
+    if org and org not in VALID_ORGS:
+        raise HTTPException(status_code=422, detail=f"Invalid org: {org!r}. Must be one of {VALID_ORGS}")
 
     content = body.get("content")
     if not content or not isinstance(content, str):
@@ -359,10 +377,10 @@ async def post_digest(request: Request):
         obs_type = "scheduled"
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    storage.write_digest(now, content, obs_type=obs_type)
+    storage.write_digest(now, content, obs_type=obs_type, org=org)
     app.state.last_digest = now
 
-    return {"ok": True, "generated_at": now, "type": obs_type}
+    return {"ok": True, "generated_at": now, "type": obs_type, "org": org}
 
 
 @app.post("/incident", dependencies=[Depends(verify_write_token)])
@@ -370,6 +388,10 @@ async def post_incident(request: Request):
     """Accept an incident snapshot from an external SRE agent."""
     from datetime import datetime, timezone
     body = await request.json()
+
+    org = body.get("org", "")
+    if org and org not in VALID_ORGS:
+        raise HTTPException(status_code=422, detail=f"Invalid org: {org!r}. Must be one of {VALID_ORGS}")
 
     worst_state = body.get("worst_state")
     if worst_state not in VALID_STATES:
@@ -391,9 +413,9 @@ async def post_incident(request: Request):
         "noise_alert_count": body.get("noise_alert_count", 0),
     }
 
-    storage.write_incident(now, incident_data)
+    storage.write_incident(now, incident_data, org=org)
 
-    return {"ok": True, "timestamp": now}
+    return {"ok": True, "timestamp": now, "org": org}
 
 
 # ---------------------------------------------------------------------------
