@@ -71,6 +71,16 @@
     .digest-type.scheduled { background: var(--surface); color: var(--text-secondary); }
     .digest-type.manual { background: var(--unsettled); color: var(--bg); }
     .no-digest { color: var(--text-secondary); font-size: 0.85rem; font-style: italic; }
+    .digest-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .digest-nav-btn {
+      background: var(--surface); border: none; color: var(--text); border-radius: 8px;
+      padding: 0.35rem 0.75rem; font-size: 0.8rem; cursor: pointer;
+    }
+    .digest-nav-btn:disabled { color: var(--text-secondary); cursor: default; }
+    .digest-nav-count { font-size: 0.75rem; color: var(--text-secondary); }
     footer {
       text-align: center; color: var(--text-secondary); font-size: 0.8rem;
       padding-top: 1rem; margin-top: 1.5rem; border-top: 1px solid var(--surface);
@@ -120,6 +130,11 @@
     <div class="digest-section">
       <template x-if="digest">
         <div>
+          <div class="digest-nav">
+            <button class="digest-nav-btn" @click="goDigest(digestIndex + 1)" :disabled="digestIndex >= digestTimestamps.length - 1">← Older</button>
+            <span class="digest-nav-count" x-text="digestTimestamps.length ? `${digestIndex + 1} of ${digestTimestamps.length}` : ''"></span>
+            <button class="digest-nav-btn" @click="goDigest(digestIndex - 1)" :disabled="digestIndex <= 0">Newer →</button>
+          </div>
           <div class="digest-meta">
             <span x-text="digest.generated_at"></span>
             <span x-text="toCentral(digest.generated_at)"></span>
@@ -176,6 +191,8 @@
       return {
         status: {},
         digest: null,
+        digestTimestamps: [],
+        digestIndex: 0,
         get isStale() {
           if (!this.status.updated_at) return true;
           const updated = new Date(this.status.updated_at).getTime();
@@ -200,13 +217,30 @@
             console.error('Failed to fetch status:', e);
           }
         },
-        async fetchDigest() {
+        async fetchDigestList() {
           try {
-            const resp = await fetch(`/digest/latest${qs}`);
-            if (resp.ok) this.digest = await resp.json();
-          } catch (e) {
-            // No digest yet, that's fine
-          }
+            const resp = await fetch(`/digests${qs ? qs + '&page_size=100' : '?page_size=100'}`);
+            if (resp.ok) {
+              const data = await resp.json();
+              this.digestTimestamps = data.digests || [];
+            }
+          } catch (e) {}
+        },
+        async fetchDigestAt(index) {
+          const ts = this.digestTimestamps[index];
+          if (!ts) return;
+          try {
+            const resp = await fetch(`/digest/${encodeURIComponent(ts)}${qs}`);
+            if (resp.ok) { this.digest = await resp.json(); this.digestIndex = index; }
+          } catch (e) {}
+        },
+        async goDigest(index) {
+          if (index < 0 || index >= this.digestTimestamps.length) return;
+          await this.fetchDigestAt(index);
+        },
+        async fetchDigest() {
+          await this.fetchDigestList();
+          if (this.digestTimestamps.length) await this.fetchDigestAt(0);
         },
         init() {
           this.fetchStatus();
