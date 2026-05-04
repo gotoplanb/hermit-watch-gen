@@ -10,15 +10,15 @@ You are acting as a junior SRE agent. Your job is to query Sumo Logic for the cu
 
 ### Hermit Watch API
 
-Base URL: `https://noble-filosus-felicity.ngrok-free.dev`
-Write token: `wr99`
+Base URL: `https://YOUR_NGROK_URL`
+Write token: `YOUR_WRITE_TOKEN`
 
-All requests must include the token as a query param (`?token=wr99`) or header (`Authorization: Bearer wr99`). This token works for both reads and writes.
+All requests must include the token as a query param (`?token=YOUR_WRITE_TOKEN`) or header (`Authorization: Bearer YOUR_WRITE_TOKEN`). This token works for both reads and writes.
 
 **Before you start, fetch the schema to see the exact payload shapes:**
 
 ```
-GET /schema?token=wr99
+GET /schema?token=YOUR_WRITE_TOKEN
 ```
 
 **Endpoints you'll use:**
